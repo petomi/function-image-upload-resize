@@ -126,24 +126,19 @@ namespace ImageFunctions {
 							EvaluationData imageData = EvaluateImage(client, createdEvent.Url);
 							if (imageData.ImageModeration.IsImageAdultClassified.HasValue && imageData.ImageModeration.IsImageRacyClassified.HasValue) {
 								if (!imageData.ImageModeration.IsImageAdultClassified.Value && !imageData.ImageModeration.IsImageRacyClassified.Value) {
-									isContentApproved = true;
+									using (var output = new MemoryStream())
+									using (Image<Rgba32> image = SixLabors.ImageSharp.Image.Load(input)) {
+										var divisor = image.Width / thumbnailWidth;
+										var height = Convert.ToInt32(Math.Round((decimal)(image.Height / divisor)));
+
+										image.Mutate(x => x.Resize(thumbnailWidth, height));
+										image.Save(output, encoder);
+										output.Position = 0;
+										await blockBlob.UploadFromStreamAsync(output);
+									}
 								}
 							}
 						};
-
-						// shrink image once approved
-						if (isContentApproved) {
-							using (var output = new MemoryStream())
-							using (Image<Rgba32> image = SixLabors.ImageSharp.Image.Load(input)) {
-								var divisor = image.Width / thumbnailWidth;
-								var height = Convert.ToInt32(Math.Round((decimal)(image.Height / divisor)));
-
-								image.Mutate(x => x.Resize(thumbnailWidth, height));
-								image.Save(output, encoder);
-								output.Position = 0;
-								await blockBlob.UploadFromStreamAsync(output);
-							}
-						}
 					}
 					else {
 						log.LogInformation($"No encoder support for: {createdEvent.Url}");
