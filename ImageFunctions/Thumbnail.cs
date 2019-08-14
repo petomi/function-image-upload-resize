@@ -37,7 +37,6 @@ namespace ImageFunctions {
 		private static string CMSubscriptionKey = Environment.GetEnvironmentVariable("CM_SUBSCRIPTION_KEY");
 		private static readonly string BLOB_STORAGE_CONNECTION_STRING = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
 		private static readonly string CMBaseUrl = $"https://{CMRegion}.api.cognitive.microsoft.com";
-		private static string OutputFile = "ModerationOutput.json"; // TODO - remove this later, after testing.
 
 		public static ContentModeratorClient NewClient() {
 			ContentModeratorClient client = new ContentModeratorClient(new ApiKeyServiceClientCredentials(CMSubscriptionKey));
@@ -95,14 +94,6 @@ namespace ImageFunctions {
 			imageData.ImageModeration = client.ImageModeration.EvaluateUrlInput("application/json", url, true);
 			Thread.Sleep(1000);
 
-			// Detect and extract text.
-			imageData.TextDetection = client.ImageModeration.OCRUrlInput("eng", "application/json", url, true);
-			Thread.Sleep(1000);
-
-			// Detect faces.
-			imageData.FaceDetection = client.ImageModeration.FindFacesUrlInput("application/json", url, true);
-			Thread.Sleep(1000);
-
 			return imageData;
 		}
 
@@ -133,17 +124,12 @@ namespace ImageFunctions {
 						// first, create new ContentModerator
 						using (var client = NewClient()) {
 							EvaluationData imageData = EvaluateImage(client, createdEvent.Url);
-							evaluationData.Add(imageData);
+							if (imageData.ImageModeration.IsImageAdultClassified.HasValue && imageData.ImageModeration.IsImageRacyClassified.HasValue) {
+								if (!imageData.ImageModeration.IsImageAdultClassified.Value && !imageData.ImageModeration.IsImageRacyClassified.Value) {
+									isContentApproved = true;
+								}
+							}
 						};
-
-						using (var output = new MemoryStream())
-						using (StreamWriter outputWriter = new StreamWriter(output)) {
-							outputWriter.WriteLine(JsonConvert.SerializeObject(evaluationData, Formatting.Indented));
-							outputWriter.Flush();
-							outputWriter.Close();
-							output.Position = 0;
-							await blockBlob.UploadFromStreamAsync(output);
-						}
 
 						// shrink image once approved
 						if (isContentApproved) {
