@@ -136,10 +136,13 @@ namespace ImageFunctions {
 							evaluationData.Add(imageData);
 						};
 
-						using (StreamWriter outputWriter = new StreamWriter(OutputFile, false)) {
+						using (var output = new MemoryStream())
+						using (StreamWriter outputWriter = new StreamWriter(output)) {
 							outputWriter.WriteLine(JsonConvert.SerializeObject(evaluationData, Formatting.Indented));
 							outputWriter.Flush();
 							outputWriter.Close();
+							output.Position = 0;
+							await blockBlob.UploadFromStreamAsync(output);
 						}
 
 						// shrink image once approved
